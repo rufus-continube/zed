@@ -977,29 +977,30 @@ impl Buffer {
         &self,
         edits: Arc<[(Range<Anchor>, String)]>,
         cx: &AppContext,
-    ) -> Task<EditPreview> {
+    ) -> EditPreview {
         let snapshot = self.text.snapshot();
         let registry = self.language_registry();
         let language = self.language().cloned();
 
         let mut branch_buffer = self.text.branch();
         let mut syntax_snapshot = self.syntax_map.lock().snapshot();
-        cx.background_executor().spawn(async move {
-            if !edits.is_empty() {
-                //TODO: can we avoid cloning the edits?
-                branch_buffer.edit(edits.iter().cloned());
-                let snapshot = branch_buffer.snapshot();
-                syntax_snapshot.interpolate(&snapshot);
-                if let Some(language) = language {
-                    syntax_snapshot.reparse(&snapshot, registry, language);
-                }
+        // TODO [edit-prediction-syntax-highlighting]: restore
+        // cx.background_executor().spawn(async move {
+        if !edits.is_empty() {
+            //TODO: can we avoid cloning the edits?
+            branch_buffer.edit(edits.iter().cloned());
+            let snapshot = branch_buffer.snapshot();
+            syntax_snapshot.interpolate(&snapshot);
+            if let Some(language) = language {
+                syntax_snapshot.reparse(&snapshot, registry, language);
             }
-            EditPreview {
-                old_snapshot: snapshot,
-                new_snapshot: branch_buffer.snapshot(),
-                syntax_snapshot,
-            }
-        })
+        }
+        EditPreview {
+            old_snapshot: snapshot,
+            new_snapshot: branch_buffer.snapshot(),
+            syntax_snapshot,
+        }
+        // })
     }
 
     /// Applies all of the changes in this buffer that intersect any of the

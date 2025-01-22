@@ -15,8 +15,8 @@ use gpui::{
 };
 use http_client::{HttpClient, Method};
 use language::{
-    language_settings::all_language_settings, Anchor, Buffer, BufferSnapshot, EditPreview,
-    OffsetRangeExt, Point, ToOffset, ToPoint,
+    language_settings::all_language_settings, Anchor, Buffer, BufferSnapshot, OffsetRangeExt,
+    Point, ToOffset, ToPoint,
 };
 use language_models::LlmApiToken;
 use rpc::{PredictEditsParams, PredictEditsResponse, EXPIRED_LLM_TOKEN_HEADER_NAME};
@@ -77,7 +77,6 @@ pub struct InlineCompletion {
     cursor_offset: usize,
     edits: Arc<[(Range<Anchor>, String)]>,
     snapshot: BufferSnapshot,
-    edit_preview: EditPreview,
     input_outline: Arc<str>,
     input_events: Arc<str>,
     input_excerpt: Arc<str>,
@@ -358,7 +357,6 @@ impl Zeta {
 
             Self::process_completion_response(
                 output_excerpt,
-                buffer,
                 &snapshot,
                 excerpt_range,
                 offset,
@@ -584,7 +582,6 @@ and then another
     #[allow(clippy::too_many_arguments)]
     fn process_completion_response(
         output_excerpt: String,
-        buffer: Model<Buffer>,
         snapshot: &BufferSnapshot,
         excerpt_range: Range<usize>,
         cursor_offset: usize,
@@ -609,20 +606,12 @@ and then another
                 .await?
                 .into();
 
-            let edit_preview = buffer
-                .read_with(&cx, {
-                    let edits = edits.clone();
-                    |buffer, cx| buffer.preview_edits(edits, cx)
-                })?
-                .await;
-
             Ok(InlineCompletion {
                 id: InlineCompletionId::new(),
                 path,
                 excerpt_range,
                 cursor_offset,
                 edits,
-                edit_preview,
                 snapshot: snapshot.clone(),
                 input_outline: input_outline.into(),
                 input_events: input_events.into(),
@@ -1239,9 +1228,13 @@ impl inline_completion::InlineCompletionProvider for ZetaInlineCompletionProvide
             }
         }
 
+        let edits = edits[edit_start_ix..edit_end_ix].to_vec();
+
+        let edit_preview = buffer.preview_edits(edits.clone().into(), cx);
+
         Some(inline_completion::InlineCompletion {
-            edits: edits[edit_start_ix..edit_end_ix].to_vec(),
-            edit_preview: Some(completion.edit_preview.clone()),
+            edits,
+            edit_preview: Some(edit_preview),
         })
     }
 }
